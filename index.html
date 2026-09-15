@@ -198,20 +198,20 @@
     }
 
     async function connect() {
-      showResult('ready', 'Connecting', 'Loading active conference sessionsâ¦');
+      showResult('ready', 'Connecting', 'Loading active conference sessions...');
       const response = await api('bootstrap');
       if (!response.ok) throw new Error(response.message || 'Connection failed.');
       elements.session.innerHTML = '';
       response.sessions.forEach(session => {
         const option = document.createElement('option');
         option.value = session.id;
-        option.textContent = `${session.id} Â· ${session.title} Â· ${session.start}â${session.end} Â· ${session.room}`;
+        option.textContent = `${session.id} | ${session.title} | ${session.start}-${session.end} | ${session.room}`;
         elements.session.appendChild(option);
       });
       const savedSession = localStorage.getItem('swacSessionId');
       if (savedSession && response.sessions.some(session => session.id === savedSession)) elements.session.value = savedSession;
       elements.session.disabled = response.sessions.length === 0;
-      elements.identity.textContent = `${state.device} Â· ${state.volunteer}`;
+      elements.identity.textContent = `${state.device} | ${state.volunteer}`;
       showResult('ready', response.sessions.length ? 'Ready to scan' : 'No active sessions', response.sessions.length ? 'Select the correct session and start the camera.' : 'Add active sessions in the Sessions sheet.');
     }
 
@@ -276,7 +276,7 @@
           volunteer: state.volunteer
         });
         showResult(response.status || 'error', response.message || 'Scan complete', response.detail || '');
-        elements.recent.textContent = `Last badge: ${response.attendeeName || attendeeId} Â· ${attendeeId}`;
+        elements.recent.textContent = `Last badge: ${response.attendeeName || attendeeId} | ${attendeeId}`;
         if (navigator.vibrate) navigator.vibrate(response.status === 'success' ? 80 : [100, 70, 100]);
       } catch (error) {
         showResult('error', 'Scan failed', error.message);
@@ -334,7 +334,7 @@
 
     elements.manualForm.addEventListener('submit', async event => {
       event.preventDefault();
-      elements.manualResults.textContent = 'Searchingâ¦';
+      elements.manualResults.textContent = 'Searching...';
       try {
         const response = await api('search', { query: elements.manualQuery.value.trim() });
         elements.manualResults.innerHTML = '';
@@ -350,7 +350,7 @@
           const name = document.createElement('strong');
           name.textContent = person.name + (person.credentials ? ', ' + person.credentials : '');
           const detail = document.createElement('span');
-          detail.textContent = `Tap to record ${state.action} Â· ${person.id}` + (person.organization ? ' Â· ' + person.organization : '');
+          detail.textContent = `Tap to record ${state.action} | ${person.id}` + (person.organization ? ' | ' + person.organization : '');
           button.append(name, detail);
           button.addEventListener('click', async () => {
             elements.manualDialog.close();
