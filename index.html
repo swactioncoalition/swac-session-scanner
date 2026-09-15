@@ -105,9 +105,8 @@
   <dialog id="settingsDialog">
     <form id="settingsForm">
       <h2>Scanner setup</h2>
-      <p>Enter the Apps Script web app address and today’s scanner code. The code is kept only until this browser tab is closed.</p>
+      <p>The SWAC backend is already connected. Enter todayâs scanner code, your name, and a device label. The code is kept only until this browser tab is closed.</p>
       <div class="setup-grid">
-        <label>Backend web app address<input id="backendUrl" type="url" required placeholder="https://script.google.com/macros/s/.../exec"></label>
         <label>Daily scanner code<input id="accessCode" type="password" required minlength="6" maxlength="12" autocomplete="off"></label>
         <label>Volunteer name<input id="volunteerName" type="text" required maxlength="100" placeholder="Volunteer name"></label>
         <label>Device label<input id="deviceLabel" type="text" required maxlength="80" placeholder="Salon A scanner"></label>
@@ -123,7 +122,8 @@
   <dialog id="manualDialog">
     <form id="manualForm">
       <h2>Manual attendee lookup</h2>
-      <p>Search by attendee name, organization, or SWAC attendee ID.</p>
+      <p>Search by attendee name, organization, or SWAC attendee ID. Confirm the person before selecting them.</p>
+      <p id="manualContext" class="help"></p>
       <input id="manualQuery" type="text" required minlength="2" maxlength="80" autocomplete="off">
       <div class="dialog-actions">
         <button id="closeManual" class="secondary" type="button">Close</button>
@@ -134,8 +134,9 @@
   </dialog>
 
   <script>
+    const SWAC_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbxA6IM4aXqWhyP9m84CD6ze4YyEaFoWn2eEfBh0Flz8OQnCbwTCkDQ3npCAAyMDvBIz/exec';
     const state = {
-      backendUrl: localStorage.getItem('swacBackendUrl') || '',
+      backendUrl: SWAC_BACKEND_URL,
       accessCode: sessionStorage.getItem('swacAccessCode') || '',
       volunteer: localStorage.getItem('swacVolunteer') || '',
       device: localStorage.getItem('swacDevice') || '',
@@ -151,7 +152,6 @@
       settings: document.getElementById('settingsButton'),
       settingsDialog: document.getElementById('settingsDialog'),
       settingsForm: document.getElementById('settingsForm'),
-      backendUrl: document.getElementById('backendUrl'),
       accessCode: document.getElementById('accessCode'),
       volunteer: document.getElementById('volunteerName'),
       device: document.getElementById('deviceLabel'),
@@ -163,7 +163,8 @@
       manualDialog: document.getElementById('manualDialog'),
       manualForm: document.getElementById('manualForm'),
       manualQuery: document.getElementById('manualQuery'),
-      manualResults: document.getElementById('manualResults')
+      manualResults: document.getElementById('manualResults'),
+      manualContext: document.getElementById('manualContext')
     };
 
     function api(apiName, parameters = {}) {
@@ -197,20 +198,20 @@
     }
 
     async function connect() {
-      showResult('ready', 'Connecting', 'Loading active conference sessions…');
+      showResult('ready', 'Connecting', 'Loading active conference sessionsâ¦');
       const response = await api('bootstrap');
       if (!response.ok) throw new Error(response.message || 'Connection failed.');
       elements.session.innerHTML = '';
       response.sessions.forEach(session => {
         const option = document.createElement('option');
         option.value = session.id;
-        option.textContent = `${session.id} · ${session.title} · ${session.start}–${session.end} · ${session.room}`;
+        option.textContent = `${session.id} Â· ${session.title} Â· ${session.start}â${session.end} Â· ${session.room}`;
         elements.session.appendChild(option);
       });
       const savedSession = localStorage.getItem('swacSessionId');
       if (savedSession && response.sessions.some(session => session.id === savedSession)) elements.session.value = savedSession;
       elements.session.disabled = response.sessions.length === 0;
-      elements.identity.textContent = `${state.device} · ${state.volunteer}`;
+      elements.identity.textContent = `${state.device} Â· ${state.volunteer}`;
       showResult('ready', response.sessions.length ? 'Ready to scan' : 'No active sessions', response.sessions.length ? 'Select the correct session and start the camera.' : 'Add active sessions in the Sessions sheet.');
     }
 
@@ -275,7 +276,7 @@
           volunteer: state.volunteer
         });
         showResult(response.status || 'error', response.message || 'Scan complete', response.detail || '');
-        elements.recent.textContent = `Last badge: ${response.attendeeName || attendeeId} · ${attendeeId}`;
+        elements.recent.textContent = `Last badge: ${response.attendeeName || attendeeId} Â· ${attendeeId}`;
         if (navigator.vibrate) navigator.vibrate(response.status === 'success' ? 80 : [100, 70, 100]);
       } catch (error) {
         showResult('error', 'Scan failed', error.message);
@@ -299,7 +300,6 @@
     }
 
     function openSettings() {
-      elements.backendUrl.value = state.backendUrl;
       elements.accessCode.value = state.accessCode;
       elements.volunteer.value = state.volunteer;
       elements.device.value = state.device;
@@ -308,11 +308,9 @@
 
     elements.settingsForm.addEventListener('submit', async event => {
       event.preventDefault();
-      state.backendUrl = elements.backendUrl.value.trim();
       state.accessCode = elements.accessCode.value.trim().toUpperCase();
       state.volunteer = elements.volunteer.value.trim();
       state.device = elements.device.value.trim();
-      localStorage.setItem('swacBackendUrl', state.backendUrl);
       sessionStorage.setItem('swacAccessCode', state.accessCode);
       localStorage.setItem('swacVolunteer', state.volunteer);
       localStorage.setItem('swacDevice', state.device);
@@ -324,9 +322,19 @@
       }
     });
 
+    function openManualLookup() {
+      const selectedSession = elements.session.options[elements.session.selectedIndex];
+      const sessionLabel = selectedSession ? selectedSession.textContent.trim() : elements.session.value;
+      elements.manualContext.textContent = `Tapping an attendee records ${state.action} for ${sessionLabel} immediately. Check the session and IN/OUT selection on the scanner screen first.`;
+      elements.manualResults.textContent = '';
+      elements.manualQuery.value = '';
+      elements.manualDialog.showModal();
+      elements.manualQuery.focus();
+    }
+
     elements.manualForm.addEventListener('submit', async event => {
       event.preventDefault();
-      elements.manualResults.textContent = 'Searching…';
+      elements.manualResults.textContent = 'Searchingâ¦';
       try {
         const response = await api('search', { query: elements.manualQuery.value.trim() });
         elements.manualResults.innerHTML = '';
@@ -342,7 +350,7 @@
           const name = document.createElement('strong');
           name.textContent = person.name + (person.credentials ? ', ' + person.credentials : '');
           const detail = document.createElement('span');
-          detail.textContent = person.id + (person.organization ? ' · ' + person.organization : '');
+          detail.textContent = `Tap to record ${state.action} Â· ${person.id}` + (person.organization ? ' Â· ' + person.organization : '');
           button.append(name, detail);
           button.addEventListener('click', async () => {
             elements.manualDialog.close();
@@ -359,7 +367,7 @@
     elements.settings.addEventListener('click', openSettings);
     document.getElementById('inButton').addEventListener('click', () => selectAction('IN'));
     document.getElementById('outButton').addEventListener('click', () => selectAction('OUT'));
-    document.getElementById('manualButton').addEventListener('click', () => elements.manualDialog.showModal());
+    document.getElementById('manualButton').addEventListener('click', openManualLookup);
     document.getElementById('closeManual').addEventListener('click', () => elements.manualDialog.close());
     document.getElementById('cancelSettings').addEventListener('click', () => elements.settingsDialog.close());
     elements.session.addEventListener('change', () => localStorage.setItem('swacSessionId', elements.session.value));
@@ -373,7 +381,7 @@
     window.addEventListener('offline', updateOnlineStatus);
     updateOnlineStatus();
 
-    if (state.backendUrl && state.accessCode && state.volunteer && state.device) {
+    if (state.accessCode && state.volunteer && state.device) {
       connect().catch(error => showResult('error', 'Connection failed', error.message));
     } else {
       openSettings();
